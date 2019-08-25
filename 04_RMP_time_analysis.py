@@ -2,21 +2,20 @@
 # @Time    : 2019/7/4 上午11:45
 # @Author  : mingchun liu
 # @Email   : psymingchun@gmail.com
-# @File    : 机器学习.py
+# @File    : 时间序列分析.py
 # @Software: PyCharm
 '''
 设置数字标签 https://www.jianshu.com/p/5ae17ace7984
 '''
 
 import pandas as pd
-import matplotlib
-matplotlib.use('TkAgg')
+
 from matplotlib import pyplot as plt
 from scipy.stats import sem
 
 src = r'/Users/liumingchun/【1】科研+实验室/3-科研项目/RateMyProfessor/bigdata/ratemyprofessor.csv'
-df2 = pd.read_csv(src)
-df = df2[['professor_name','school_name','department_name','year_since_first_review','star_rating']].drop_duplicates(['professor_name','school_name'])
+df = pd.read_csv(src, usecols=['professor_name','school_name','department_name','year_since_first_review','star_rating'])
+df = df.drop_duplicates(['professor_name','school_name'], 'first', False)
 
 df_mean = df.groupby('year_since_first_review').star_rating.mean()
 # print(df_mean)
@@ -35,14 +34,13 @@ print(count.astype(int))
 # Plot
 fig, ax1 = plt.subplots()
 
-fig.set_figwidth(10)
-fig.set_figheight(7)
+fig.set_figwidth(15)
+fig.set_figheight(12)
 
 
 ax1.set_ylabel("Average Star Rating", fontsize=12)
 
-
-ax1.plot(x, df_mean, color="black", lw=1)
+ax1.plot(list(x), list(df_mean), color="black", lw=1)
 ax1.fill_between(x, df_mean - df_se, df_mean + df_se, color="#b7dafc",lw=5) #显示标准区间
 
 # # # Decorations
@@ -58,14 +56,14 @@ plt.xlabel("Year Since First Review", fontsize=12)
 s, e = plt.gca().get_xlim()
 plt.xlim(s, e)
 plt.axvline(6) # 参考线
-plt.axvline(12) # 参考线
+plt.axvline(15) # 参考线
 # Draw Horizontal Tick lines
 for y in range(3, 5, 1):
     plt.hlines(y, xmin=s, xmax=e, colors='black', alpha=0.5, linestyles="--", lw=2)
 
 ax1.text(1, 1.5, r"assistant professor", fontsize=10)
-ax1.text(7, 1.5, r'associate professor', fontsize=10)
-ax1.text(14,1.5, r'full professor', fontsize=10)
+ax1.text(8, 1.5, r'associate professor', fontsize=10)
+ax1.text(16,1.5, r'full professor', fontsize=10)
 ax1.set_ylim([1, 5])
 
 
@@ -83,7 +81,7 @@ for a,b in zip(x,sum):
     plt.text(a, b + 0.05, '%.0f' % b, ha='center', va= 'bottom',fontsize=7)
 
 ax2.set_ylim([1, 180000])
-ax2.plot(x, sum, color="red")
+ax2.plot(list(x), list(sum), color="red")
 
 fig.tight_layout()
 plt.show()

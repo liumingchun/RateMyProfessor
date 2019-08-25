@@ -5,19 +5,18 @@
 # @Email   : psymingchun@gmail.com
 # @File    : RMP.py
 # @Software: PyCharm
+'''
+从pro-data-xxx文件中提取网页信息，最后输出 RMP_sample_data.csv
 
+'''
 import pandas as pd
 from pyquery import PyQuery as PQ
 import re
 import os
 
-path1='/Users/liumingchun/【1】科研+实验室/4-科研项目/RateMyProfessor/data/DownloadedRateMyProfessorData/prof-page-tid-2028529.data'
-path ='/Users/liumingchun/【1】科研+实验室/4-科研项目/RateMyProfessor/data/DownloadedRateMyProfessorData-2/'
-res_path = '/Users/liumingchun/Document/data/'
-
-
-file_list = os.listdir(path1)
-
+path ='/Users/liumingchun/【1】科研+实验室/4-科研项目/RateMyProfessor/data/DownloadedRateMyProfessorData-2/' #原始数据地址
+res_path = '/Users/liumingchun/Document/data/' # 保存csv地址
+file_list = os.listdir(path)
 
 num = 0
 for each in file_list:
@@ -25,10 +24,6 @@ for each in file_list:
     file_path = path+each
     with open(file_path,'r') as f:
         html = f.read()
-
-# with open(path1,'r') as f:
-#     html = f.read()
-# doc = PQ(html)
 
     professor_names = []
     school_names = []
@@ -42,18 +37,15 @@ for each in file_list:
 
     diff_indexs = []
     num_students = []
-
     post_date=[]
     name_onlines =[]
 
     stu_stars = []
     stu_diffs = []
     attences = []
-
     for_credits =[]
     would_take_agains =[]
     grades =[]
-
     comments = []
 
     try:
@@ -186,7 +178,6 @@ for each in file_list:
                  'post_date': post_date,'name_onlines':name_onlines,'student_star ':stu_stars, 'student_difficult' :stu_diffs, 'attence':attences, 'for_credits':for_credits,'would_take_agains':would_take_agains,'grades':grades,'comments': comments}
         df = pd.DataFrame().from_dict(infos,orient='index')
         df = df.T
-
 
         df.to_csv(res_path+str(num)+'.csv',index=False)
         print('第'+str(num) +'文件')

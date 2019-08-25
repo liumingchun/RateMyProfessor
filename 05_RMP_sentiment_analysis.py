@@ -7,9 +7,6 @@
 
 import pandas as pd
 import numpy as np
-
-
-
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -41,11 +38,6 @@ freq = nltk.FreqDist(clean_tokens)
 for key, val in freq.items():
     print(str(key) + ':' + str(val))
 freq.plot(20, cumulative=False)
-
-
-
-
-
 
 
 
@@ -102,13 +94,6 @@ low_std = np.std(low_professor_sentiment)
 print('平均数：',low_mean,'标准差',low_std)
 
 
-
-
-#
-# from textblob import TextBlob
-#
-# testimonial = TextBlob(text)
-# print(testimonial.sentiment)
 
 
 
