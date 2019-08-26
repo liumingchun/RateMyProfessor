@@ -1,0 +1,314 @@
+---
+title: "RateMyProf"
+author: "Jingmeng Cui"
+date: "2019年2月11日"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache = TRUE, cache.lazy = FALSE )
+knitr::opts_chunk$set(autodep = TRUE)
+knitr::opts_chunk$set(error = TRUE)
+```
+
+# 读入数据
+
+```{r readfile}
+library(tidyverse)
+library(lubridate)
+library(data.table)
+pat <- "./data3"
+pat <- "./data4"
+all <- fread(str_c(pat, "/","new.csv",sep = ""))
+#all <- read_csv(str_c(pat, "/","new.csv",sep = ""))
+all <- unique(all)
+all <- all %>%
+  filter(is.na(professor_name) | (professor_name != "NULL") & (professor_name != "professor_name")) %>%
+  mutate(post_date_standard = mdy(post_date))
+```
+
+共有`r nrow(all)`条有效数据。
+
+```{r psy}
+all_psy <- all %>%
+  filter(str_detect(name_onlines, "PSY") |
+           str_detect(name_onlines, "psy") |
+           str_detect(name_onlines, "PY") |
+           str_detect(name_onlines, "py")) %>%
+  filter(str_detect(name_onlines, "[0-9]")) %>%
+  mutate(course_code_number = 
+           map_chr(
+             .f = function(x){str_extract(x, "[0-9]+")},
+             .x = name_onlines
+           )) %>%
+  mutate(course_level = 
+           map_int(
+             .f = function(x){as.integer(substr(x,1,1))},
+             .x = course_code_number
+           ))
+```
+
+其中，心理学数据`r nrow(all_psy)`条，包括`r length(unique(all_psy$professor_name))`个教授。
+
+心理学数据的课程level分布如图所示。
+```{r leveldist}
+qplot(all_psy$course_level)
+```
+
+# 不同课程level的评分和难度关系
+
+对于level 1-4
+
+```{r}
+library(ggExtra)
+ug_psy <- all_psy %>%
+  filter(course_level >=1, course_level <=4)
+
+p1 <- ggplot(data = ug_psy, mapping = aes(y = as.numeric(student_star), x = as.numeric(student_difficult), color = as.factor(course_level))) +
+  geom_jitter(alpha = 0.05*30000/nrow(ug_psy), width = 0.5, height = 0.25) +
+  #geom_violin(mapping = aes(x = as.factor(student_difficult))) +
+  geom_smooth(method = "lm", mapping = aes(fill = as.factor(course_level))) +
+  theme_bw() #+
+  #scale_color_manual(values=c('#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#b15928', '#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#b15928'))
+
+ggMarginal(p1, type = "density", groupColour = TRUE)
+```
+
+4xx课程有一些差别。
+
+对于level5以上
+```{r}
+g_psy <- all_psy %>%
+  filter(course_level > 4)
+
+p2 <- ggplot(data = g_psy, mapping = aes(y = as.numeric(student_star), x = as.numeric(student_difficult), color = as.factor(course_level))) +
+  geom_jitter(alpha = 0.05*30000/nrow(g_psy), width = 0.5, height = 0.25) +
+  #geom_violin(mapping = aes(x = as.factor(student_difficult))) +
+  geom_smooth(method = "lm", mapping = aes(fill = as.factor(course_level))) +
+  theme_bw() #+
+#scale_color_manual(values=c('#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#b15928', '#a6cee3','#1f78b4','#b2df8a','#33a02c','#fb9a99','#e31a1c','#fdbf6f','#ff7f00','#cab2d6','#6a3d9a','#ffff99','#b15928'))
+
+ggMarginal(p2, type = "density", groupColour = TRUE)
+```
+
+# 标签数据分析
+## 从教授的角度
+拆开标签数据
+```{r}
+all_prof <- all %>%
+  as.tibble() %>%
+  select(professor_name:num_student) %>%
+  unique()
+
+all_prof <- all_prof %>%
+  mutate(
+    tags_text = map(
+      .x = tag_professor,
+      .f = function(x){
+        y <- str_split(x, pattern = "\\ \\([0-9]+\\)\\ \\ ")
+        if(!is.na(y[[length(y)]])[1]){
+          y[[1]][length(y[[1]])] <- str_remove(y[[1]][length(y[[1]])], "\\ \\([0-9]+\\)")
+        }
+        return(y)
+      }
+    ),
+    tags_freq = map(
+      .x = tag_professor,
+      .f = function(x){
+        y <- str_extract_all(x, "[1-9]+?")
+        return(y)
+      }
+    )
+  )
+```
+
+```{r}
+all_tags_category <- unique(na.omit(c(unlist(all_prof$tags_text))))
+
+all_tags <- all_prof %>%
+  as.tibble() %>%
+  filter(tag_professor != "")
+
+all_tags$tags_category <- list(unique(all_tags_category))
+
+for(i in all_tags_category){
+  all_tags[[i]] <- vector(mode = "integer", length = nrow (all_tags))
+}
+
+for(i in 1:nrow(all_tags)){
+  temp <- unlist(all_tags[i, "tags_text"][[1]])
+  for(j in 1:length(temp)){
+    all_tags[i, temp[j]] <- as.numeric(unlist(all_tags[i, "tags_freq"][[1]])[j])/as.numeric(all_tags[i, "num_student"][[1]])
+  }
+}
+```
+
+共有`r length(unique(all_tags_category))`个tag。
+
+分析tag和评分
+（**未来需要统一一下大小写 好像ggplot出来的都是大写？**）
+```{r}
+library(psych)
+library(corrplot)
+all_tags$star_rating <- as.numeric(all_tags$star_rating)
+all_tags$diff_index <- as.numeric(all_tags$diff_index)
+all_tags_m <- as.matrix(select(all_tags, star_rating, diff_index, `Caring`:`BEWARE OF POP QUIZZES`))
+all_tags_m <- apply(all_tags_m, 2, as.numeric)
+co <- cor(all_tags_m, use = "pairwise.complete.obs")
+corrplot(co, method = "ellipse")
+cor2latex(all_tags_m, star = TRUE, method = "spearman", apa = FALSE)
+```
+
+
+## 从个人的角度
+
+```{r tags_person}
+all_tags_person <- all_psy %>%
+  filter(stu_tags != "")
+
+all_tags_person <- all_tags_person %>%
+  mutate(
+    tags_text = map(
+      .x = stu_tags,
+      .f = function(x){
+        y <- str_split(x, pattern = "\\ \\ ")
+        return(y)
+      }
+    )
+  )
+
+all_tags_category_2 <- unique(na.omit(c(unlist(all_tags_person$tags_text))))
+
+for(i in all_tags_category_2){
+  all_tags_person[[i]] <- vector(mode = "integer", length = nrow (all_tags_person))
+}
+
+
+for(i in 1:nrow(all_tags_person)){
+  temp <- unlist(all_tags_person[i, "tags_text"][[1]])
+  for(j in 1:length(temp)){
+    all_tags_person[i, temp[j]] <- 1
+  }
+}
+
+all_tags_person_summary <- all_tags_person %>%
+  gather(key = "key", value = "value", 28:47) %>%
+  filter(value != 0) %>%
+  mutate(post_year = year(post_date_standard)) %>%
+  group_by(post_year, key) %>%
+  summarize(n = sum(value)) %>%
+  ungroup() %>%
+  group_by(post_year) %>%
+  mutate(proportion = n / sum(n)) %>%
+  ungroup()
+  
+qplot(data = all_tags_person_summary, x = post_year, y = proportion, color = key) +
+  geom_smooth() +
+  geom_text(data = filter(all_tags_person_summary, post_year == 2018), mapping = aes(label = key))
+
+all_tags_level_summary <- all_tags_person %>%
+  gather(key = "key", value = "value", 28:47) %>%
+  filter(value != 0) %>%
+  mutate(post_year = year(post_date_standard)) %>%
+  group_by(course_level, key) %>%
+  summarize(n = sum(value)) %>%
+  ungroup() %>%
+  group_by(course_level) %>%
+  mutate(proportion = n / sum(n)) %>%
+  ungroup()
+
+ggplot(data = filter(all_tags_level_summary, course_level <= 4 & course_level >= 1),
+       mapping = aes(x = key, y = proportion, fill = as.factor(course_level))) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip()
+
+
+```
+
+
+# 评论NLP分析
+
+```{r}
+library(tm)
+library(tidytext)
+data("stop_words")
+all_comment <- all_psy
+sentnrc <- get_sentiments("nrc")
+
+all_comment <- all_comment %>%
+  as.tibble() %>%
+  mutate(post_year = year(post_date_standard)) %>%
+  unnest_tokens(input = "comments", output = "words") %>%
+  anti_join(stop_words, by = c("words" = "word")) %>%
+  mutate(words = stemDocument(words)) #%>%
+  #left_join(sentnrc, by = c("words" = "word"))
+
+qplot(as.factor(all_comment$post_year)) #时间分布
+
+all_comment_summary <- all_comment %>%
+  count(words, sort = TRUE) %>%
+  ungroup()
+
+all_comment_summary_by_year <- all_comment %>%
+  count(post_year, words, sort = TRUE) %>%
+  group_by(post_year) %>%
+  mutate(proportion = n / sum(n)) %>%
+  select(-n) %>%
+  ungroup()
+
+# 2003 for data 4 2009 for data 3
+all_comment_summary_by_year_20 <- all_comment_summary_by_year %>%
+  inner_join(all_comment_summary[1:20,]) %>%
+  filter(post_year >= 2003)
+
+qplot(data = all_comment_summary_by_year_20, x = post_year, y = proportion, color = as.factor(words)) +
+  geom_smooth(se = FALSE) +
+  geom_text(data = filter(all_comment_summary_by_year_20, post_year == 2003 | post_year == 2018), mapping = aes(label = words), size = 5, alpha = 0.5) +
+  theme_bw()
+
+qplot(data = filter(all_comment_summary_by_year_20, words != "class"), x = post_year, y = proportion, color = as.factor(words)) +
+  geom_smooth(se = FALSE) +
+  geom_text(data = filter(all_comment_summary_by_year_20, words != "class", post_year == 2003 | post_year == 2018), mapping = aes(label = words), size = 5, alpha = 0.5) +
+  theme_bw()
+```
+有些词的频率有所变化
+
+# 是否再次
+
+```{r takeagain}
+all_take <- all %>% 
+  filter(would_take_agains != "N/A") %>%
+  filter(would_take_agains != "") %>%
+  mutate(
+    would_take_agains_10 = map_lgl(
+      .x = would_take_agains,
+      .f = function(x){
+        if(x == "Yes"){return(TRUE)}else{return(FALSE)}
+      }
+    )
+  )
+
+ggplot(data = all_take, mapping = aes(x = would_take_agains, y = as.numeric(star_rating))) +
+  geom_violin() +
+  geom_boxplot(width = 0.1, notch = TRUE)
+
+ggplot(data = all_take, mapping = aes(x = would_take_agains, y = as.numeric(diff_index))) +
+  geom_violin() +
+  geom_boxplot(width = 0.1, notch = TRUE)
+```
+```{r corr}
+all_take_m <- select(all_take, would_take_agains_10, student_star, student_difficult)
+all_take_m$would_take_agains_10 <- as.numeric(all_take_m$would_take_agains_10)
+all_take_m$student_star <- as.numeric(all_take_m$student_star)
+all_take_m$student_difficult <- as.numeric(all_take_m$student_difficult)
+all_take_m <- as.matrix(all_take_m)
+
+co2 <- cor(all_take_m, use = "pairwise.complete.obs")
+corrplot(co2, method = "ellipse")
+#cor2latex(all_tags_m, star = TRUE, method = "spearman", apa = FALSE)
+```
+
+
+
+# 是否
